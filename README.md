@@ -49,6 +49,32 @@ Backend chạy tại:
 http://localhost:5000
 ```
 
+## Cấu hình .env cho nhóm
+
+Repo không commit `.env` thật để tránh lộ MongoDB password, JWT secret và ESP32 key. Cả nhóm dùng cùng database thì chia sẻ nội dung `.env` qua kênh riêng, rồi mỗi máy tự tạo file:
+
+Backend:
+
+```powershell
+cd backend
+copy .env.example .env
+notepad .env
+```
+
+Frontend:
+
+```powershell
+copy .env.example .env
+notepad .env
+```
+
+Các file cần có trên máy từng thành viên:
+
+```text
+backend/.env
+.env
+```
+
 Health check:
 
 ```text
