@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { isAuthenticated } from "./api/auth";
 import ProtectedRoute from "./components/ProtectedRoute";
+import Console from "./pages/Console";
 import Dashboard from "./pages/Dashboard";
 import ForgotPassword from "./pages/ForgotPassword";
 import History from "./pages/History";
@@ -26,6 +27,14 @@ function App() {
         />
         <Route
           path="/"
+          element={
+            <ProtectedRoute>
+              <Console />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard"
           element={
             <ProtectedRoute>
               <Dashboard />

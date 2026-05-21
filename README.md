@@ -1,153 +1,124 @@
-﻿# Smart Home UI
+# Smart Home System
 
-Frontend dashboard for a smart home demo with:
+Monorepo cho hệ thống Smart Home gồm:
 
-- sensor monitoring
-- device control
-- temperature-based automation
-- login and protected routes
-- password recovery by username and phone
-- automatic fallback to mock data when the backend is offline
+- `.`: React/Vite frontend
+- `backend/`: Node.js/Express backend
 
-The UI is structured around a real backend flow, but it can still be previewed without a backend during demo or design work.
+## Tính năng chính
 
-## Features
+- Đăng ký, đăng nhập JWT
+- Quản lý Home, Area, Device
+- Điều khiển thiết bị `light` / `fan`
+- Nhận dữ liệu cảm biến từ ESP32
+- Lịch tự động bật/tắt thiết bị
+- Luật ngưỡng cảm biến và cảnh báo
+- Trang admin cho user, home, device chưa gán
 
-- Dashboard showing latest temperature and humidity
-- Fan and light control with ON/OFF actions
-- Auto refresh for sensor data and device status
-- Automation that turns the fan on when temperature passes the threshold
-- History page for sensor records
-- Settings page for local temperature threshold
-- Chart view using Recharts
-- Login page with mock-backed authentication fallback
-- Forgot password flow that verifies identity before resetting password
-- Mock fallback when API requests fail
+## Yêu cầu
 
-## Runtime Behavior
+- Node.js 20+
+- MongoDB Atlas hoặc MongoDB local
+- Tài khoản MongoDB có quyền đọc/ghi database
 
-### Frontend control flow
+## Chạy backend
 
-1. User clicks a device action in the dashboard.
-2. Frontend sends `POST /api/devices/control`.
-3. Frontend fetches `GET /api/devices` again to sync UI state.
-4. Device cards re-render with the latest status.
-
-### Frontend automation flow
-
-1. Dashboard polls `GET /api/sensors/latest` every 3 seconds.
-2. If temperature is above the configured threshold, frontend triggers `controlDevice("fan", "on")`.
-3. If temperature drops below the threshold, frontend triggers `controlDevice("fan", "off")`.
-4. The dashboard shows an automation warning when the threshold is exceeded.
-
-### Fallback behavior
-
-If the backend is unavailable, the app automatically falls back to local mock data:
-
-- sensor endpoints return generated demo values
-- device control updates local mock state
-- auth login uses local demo accounts
-- password recovery verifies username + phone locally, then updates the demo password
-- the UI remains usable for presentation and layout testing
-
-### Authentication flow
-
-1. Unauthenticated users are redirected to `/login`.
-2. Login stores a token in `localStorage` and unlocks protected routes.
-3. Forgot password verifies `username + phone`.
-4. After verification, the user sets a new password instead of receiving the old one.
-5. Dashboard provides logout and clears the local session.
-
-## API Expectations
-
-Default API base URL:
-
-```text
-http://localhost:5000/api
+```powershell
+cd backend
+npm install
+copy .env.example .env
+notepad .env
+npm run dev
 ```
 
-You can override it with:
+Ví dụ `.env` backend:
+
+```env
+PORT=5000
+NODE_ENV=development
+MONGODB_URI=mongodb+srv://<user>:<password>@<cluster-host>/smart-home?retryWrites=true&w=majority&appName=Cluster0
+JWT_SECRET=change_this_jwt_secret
+JWT_EXPIRES_IN=7d
+DEVICE_SECRET_KEY=smart_home_esp32_secret_key
+CLIENT_URL=http://127.0.0.1:5173
+```
+
+Backend chạy tại:
+
+```text
+http://localhost:5000
+```
+
+Health check:
+
+```text
+http://localhost:5000/api/health
+```
+
+## Chạy frontend
+
+Mở terminal thứ hai:
+
+```powershell
+npm install
+copy .env.example .env
+notepad .env
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+Ví dụ `.env` frontend:
 
 ```env
 VITE_API_BASE_URL=http://localhost:5000/api
 ```
 
-Expected endpoints:
+Frontend chạy tại:
 
-- `POST /api/auth/login`
-- `POST /api/auth/forgot-password/verify`
-- `POST /api/auth/reset-password`
-- `GET /api/sensors/latest`
-- `GET /api/sensors`
-- `GET /api/devices`
-- `POST /api/devices/control`
+```text
+http://127.0.0.1:5173/
+```
 
-Example control payload:
+Nên dùng thống nhất `127.0.0.1:5173` để tránh khác origin với `localhost:5173`.
+
+## Luồng sử dụng
+
+1. Mở frontend.
+2. Chọn **Create account** để tạo tài khoản.
+3. Tạo **Home**.
+4. Chọn Home vừa tạo.
+5. Tạo **Area** trong Home đó.
+6. Tạo **Device** và gán vào Area nếu cần.
+7. Tạo **Schedule** hoặc **Threshold Rule** trong tab Automation.
+
+## ESP32 gửi dữ liệu cảm biến
+
+Endpoint:
+
+```text
+POST http://localhost:5000/api/sensors/data
+```
+
+Header:
+
+```text
+X-Device-Key: smart_home_esp32_secret_key
+Content-Type: application/json
+```
+
+Body ví dụ:
 
 ```json
 {
-  "deviceId": "fan",
-  "action": "on"
+  "deviceId": "esp32-01",
+  "temperature": 28.5,
+  "humidity": 65.3,
+  "anomalyScore": 0.12,
+  "dataQuality": 0.98
 }
 ```
 
-Example login payload:
+Thiết bị ESP32 mới sẽ được tạo dạng chưa gán Home. Admin vào tab **Admin** để assign device vào Home.
 
-```json
-{
-  "username": "admin",
-  "password": "admin123"
-}
-```
+## Ghi chú bảo mật
 
-## Tech Stack
-
-- React 19
-- Vite 8
-- React Router
-- Recharts
-
-## Project Structure
-
-```text
-src/
-  api/          API layer and backend client
-  components/   Reusable UI blocks
-  mock/         Local fallback data
-  pages/        Dashboard, History, Settings
-  utils/        Response normalization helpers
-```
-
-## Getting Started
-
-Install dependencies:
-
-```bash
-npm install
-```
-
-Run development server:
-
-```bash
-npm run dev
-```
-
-Build production bundle:
-
-```bash
-npm run build
-```
-
-Open:
-
-```text
-http://localhost:5173
-```
-
-## Notes
-
-- JWT is read from `localStorage.getItem("token")` when calling the backend.
-- Demo accounts are `admin / admin123` and `khanh / khanh123`.
-- The current version is safe to demo even without backend services.
-- The recovery flow now resets passwords instead of returning plaintext passwords.
-- Once the backend is ready, the same UI can switch to live data without changing the page structure.
+Không commit file `.env`. Repo chỉ giữ `.env.example`. Nếu đã lộ MongoDB URI hoặc password, hãy đổi password trong MongoDB Atlas.

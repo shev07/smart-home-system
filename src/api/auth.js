@@ -24,14 +24,17 @@ const findDemoUser = ({ username, phone }) =>
   });
 
 export const loginUser = async ({ username, password }) => {
+  const email = username?.includes("@") ? username.trim() : `${username?.trim() || ""}@demo.local`;
+
   try {
-    const data = await apiRequest("/auth/login", {
+    const payload = await apiRequest("/auth/login", {
       method: "POST",
-      body: { username, password }
+      body: { email, password }
     });
 
+    const data = payload?.data ?? payload;
     const token = data?.token || createDemoToken(username);
-    const user = data?.user || { username };
+    const user = data?.user || data || { username: email, email };
     saveSession(token, user);
 
     return { data, fallback: false };
@@ -54,6 +57,31 @@ export const loginUser = async ({ username, password }) => {
       error
     };
   }
+};
+
+export const registerUser = async ({ name, email, password, phoneNumber }) => {
+  const payload = await apiRequest("/auth/register", {
+    method: "POST",
+    body: { name, email, passwordHash: password, phoneNumber }
+  });
+  const data = payload?.data ?? payload;
+  const token = data?.token;
+  const user = data?.user || data;
+
+  if (token) {
+    saveSession(token, user);
+  }
+
+  return data;
+};
+
+export const getCurrentUser = async () => {
+  const payload = await apiRequest("/auth/me");
+  const data = payload?.data ?? payload;
+  if (data) {
+    localStorage.setItem(USER_KEY, JSON.stringify(data));
+  }
+  return data;
 };
 
 export const verifyRecoveryIdentity = async ({ username, phone }) => {

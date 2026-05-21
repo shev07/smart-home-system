@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { loginUser } from "../api/auth";
+import { loginUser, registerUser } from "../api/auth";
 
 const pageStyle = {
   minHeight: "100vh",
@@ -62,6 +62,8 @@ function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const [form, setForm] = useState({ username: "", password: "" });
+  const [registerForm, setRegisterForm] = useState({ name: "", email: "", password: "", phoneNumber: "" });
+  const [mode, setMode] = useState("login");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [modeLabel, setModeLabel] = useState("");
@@ -71,6 +73,11 @@ function Login() {
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleRegisterChange = (event) => {
+    const { name, value } = event.target;
+    setRegisterForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (event) => {
@@ -89,6 +96,21 @@ function Login() {
     }
   };
 
+  const handleRegister = async (event) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setError("");
+
+    try {
+      await registerUser(registerForm);
+      navigate(redirectTo, { replace: true });
+    } catch (submitError) {
+      setError(submitError.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div style={pageStyle}>
       <div style={shellStyle}>
@@ -98,12 +120,11 @@ function Login() {
               SMART HOME ACCESS
             </div>
             <h1 style={{ fontSize: "2.6rem", margin: "14px 0 12px", lineHeight: 1.1 }}>
-              Login panel aligned with the dashboard flow
+              Access panel for the full backend console
             </h1>
             <p style={{ maxWidth: "620px", margin: 0, color: "#cbd5e1", lineHeight: 1.7 }}>
-              Sign in to open the smart home dashboard, test protected routes,
-              and review the device automation UI. If the backend is offline,
-              the app still works with local auth fallback.
+              Sign in with backend email/password or create a new account through
+              `POST /api/auth/register`. Demo fallback still works when the API is offline.
             </p>
           </div>
 
@@ -154,9 +175,11 @@ function Login() {
 
         <section style={authCardStyle}>
           <div style={{ color: "#0ea5e9", fontWeight: 700, letterSpacing: "0.08em" }}>
-            SIGN IN
+            {mode === "login" ? "SIGN IN" : "REGISTER"}
           </div>
-          <h2 style={{ margin: "12px 0 8px", color: "#0f172a", fontSize: "2rem" }}>Welcome back</h2>
+          <h2 style={{ margin: "12px 0 8px", color: "#0f172a", fontSize: "2rem" }}>
+            {mode === "login" ? "Welcome back" : "Create account"}
+          </h2>
           <p style={{ margin: 0, color: "#475569", lineHeight: 1.6 }}>
             Use a demo account or your backend account if the auth API is available.
           </p>
@@ -175,15 +198,16 @@ function Login() {
             <div>`khanh / khanh123`</div>
           </div>
 
+          {mode === "login" ? (
           <form onSubmit={handleSubmit} style={{ marginTop: "20px", display: "grid", gap: "16px" }}>
             <label>
-              <div style={{ color: "#334155", fontWeight: 600 }}>Username</div>
+              <div style={{ color: "#334155", fontWeight: 600 }}>Email or demo username</div>
               <input
                 name="username"
                 value={form.username}
                 onChange={handleChange}
                 style={inputStyle}
-                placeholder="Enter username"
+                placeholder="user@example.com or admin"
               />
             </label>
 
@@ -215,6 +239,34 @@ function Login() {
               {isSubmitting ? "Signing in..." : "Login"}
             </button>
           </form>
+          ) : (
+          <form onSubmit={handleRegister} style={{ marginTop: "20px", display: "grid", gap: "16px" }}>
+            <label>
+              <div style={{ color: "#334155", fontWeight: 600 }}>Name</div>
+              <input name="name" value={registerForm.name} onChange={handleRegisterChange} style={inputStyle} placeholder="Nguyen Van A" required />
+            </label>
+            <label>
+              <div style={{ color: "#334155", fontWeight: 600 }}>Email</div>
+              <input type="email" name="email" value={registerForm.email} onChange={handleRegisterChange} style={inputStyle} placeholder="user@example.com" required />
+            </label>
+            <label>
+              <div style={{ color: "#334155", fontWeight: 600 }}>Phone number</div>
+              <input name="phoneNumber" value={registerForm.phoneNumber} onChange={handleRegisterChange} style={inputStyle} placeholder="0901234567" />
+            </label>
+            <label>
+              <div style={{ color: "#334155", fontWeight: 600 }}>Password</div>
+              <input type="password" name="password" value={registerForm.password} onChange={handleRegisterChange} style={inputStyle} placeholder="At least 6 characters" required />
+            </label>
+            {error && (
+              <div style={{ borderRadius: "12px", background: "#fef2f2", color: "#b91c1c", padding: "12px 14px" }}>
+                {error}
+              </div>
+            )}
+            <button type="submit" style={buttonStyle} disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create account"}
+            </button>
+          </form>
+          )}
 
           <div
             style={{
@@ -226,6 +278,16 @@ function Login() {
             }}
           >
             <Link to="/forgot-password">Forgot password?</Link>
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                setMode((current) => (current === "login" ? "register" : "login"));
+              }}
+              style={{ border: 0, background: "transparent", color: "#2563eb", cursor: "pointer", padding: 0 }}
+            >
+              {mode === "login" ? "Create account" : "Back to login"}
+            </button>
             <Link to="/">Back to app</Link>
           </div>
         </section>
