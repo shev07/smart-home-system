@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
+} from "recharts";
 import { getCurrentUser, getStoredUser, logoutUser } from "../api/auth";
 import {
   adminApi,
@@ -179,13 +188,26 @@ function Console() {
     assignHomeId: "",
     assignAreaId: "",
     adminHomeName: "",
-    adminOwnerUserId: ""
+    adminOwnerUserId: "",
+    adminMemberHomeId: "",
+    adminMemberUserId: "",
+    adminMemberAsOwner: false
   });
 
   const selectedHome = homes.find((home) => getId(home) === homeId);
   const selectedDeviceId = forms.ruleDeviceId || forms.scheduleDeviceId || getId(devices[0]) || "";
   const selectedSensorId = getId(sensorDevices[0]) || "";
-  const isAdmin = user?.role === "admin" || user?.username === "admin";
+  const canUseAdmin = (profile = user) => profile?.role === "admin" || profile?.username === "admin";
+  const isAdmin = canUseAdmin();
+  const currentHomeDevices = devices.filter((device) => getId(device.homeId) === homeId || !device.homeId);
+  const historyChartData = history
+    .slice()
+    .reverse()
+    .map((item) => ({
+      time: item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
+      value: Number(item.value),
+      unit: item.unit || ""
+    }));
 
   const updateForm = (key, value) => setForms((prev) => ({ ...prev, [key]: value }));
 
@@ -256,8 +278,8 @@ function Console() {
     }
   };
 
-  const loadAdmin = async () => {
-    if (!isAdmin) return;
+  const loadAdmin = async (profile = user) => {
+    if (!canUseAdmin(profile)) return;
     const [users, adminHomes, adminDevices, unassigned] = await Promise.all([
       adminApi.users().catch(() => ({ users: [] })),
       adminApi.homes().catch(() => ({ homes: [] })),
@@ -279,7 +301,7 @@ function Console() {
       if (profile) setUser(profile);
       const nextHomeId = await loadHomes();
       await loadHomeScope(nextHomeId);
-      await loadAdmin();
+      await loadAdmin(profile);
     } catch (loadError) {
       setError(loadError.message);
     }
@@ -366,6 +388,16 @@ function Console() {
       updateForm("ruleName", "");
       await loadHomeScope(homeId);
     }, "Threshold rule created");
+
+  const addUserToHome = () =>
+    run(async () => {
+      await adminApi.addUserToHome(forms.adminMemberHomeId, {
+        userId: forms.adminMemberUserId,
+        asOwner: forms.adminMemberAsOwner
+      });
+      updateForm("adminMemberUserId", "");
+      await loadAdmin();
+    }, "User added to home");
 
   const handleLogout = () => {
     logoutUser();
@@ -534,12 +566,33 @@ function Console() {
                 ))}
               </div>
               {homeId && !areas.length && <Empty text="This Home has no areas yet." />}
+              {homeId && (
+                <div style={{ marginTop: 22, borderTop: "1px solid #e2e8f0", paddingTop: 16 }}>
+                  <div style={sectionEyebrow}>Devices in this Home</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginTop: 10 }}>
+                    {currentHomeDevices.map((device) => {
+                      const area = areas.find((item) => getId(item) === getId(device.areaId));
+                      return (
+                        <div key={getId(device)} style={{ border: "1px solid #dce6f2", borderRadius: 10, padding: 14, background: "#fff" }}>
+                          <strong style={{ display: "block" }}>{device.name}</strong>
+                          <div style={{ color: "#64748b", marginTop: 6 }}>{device.type} / {area?.name || "No area"}</div>
+                          <div style={{ marginTop: 10, color: device.status === "on" ? "#15803d" : "#64748b", fontWeight: 800 }}>
+                            {device.status || "off"}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {!currentHomeDevices.length && <Empty text="No devices in this Home yet. Admin can assign discovered devices from the Admin tab." />}
+                </div>
+              )}
             </section>
           </div>
         )}
 
         {activeTab === "devices" && (
           <div style={{ display: "grid", gap: 16 }}>
+            {isAdmin ? (
             <section style={panel}>
               <h2 style={{ marginTop: 0 }}>Add device</h2>
               <div style={grid}>
@@ -559,6 +612,15 @@ function Console() {
               </div>
               <button style={{ ...button, marginTop: 12 }} onClick={createDevice} disabled={!homeId || !forms.deviceName || busy}>Add device</button>
             </section>
+            ) : (
+            <section style={panel}>
+              <div style={sectionEyebrow}>User permission</div>
+              <h2 style={{ margin: "6px 0 8px" }}>Device list only</h2>
+              <p style={{ margin: 0, color: "#64748b" }}>
+                User accounts can create areas in assigned homes. Device assignment is handled by admin.
+              </p>
+            </section>
+            )}
 
             <section style={{ ...panel, overflowX: "auto" }}>
               <h2 style={{ marginTop: 0 }}>Devices</h2>
@@ -598,10 +660,23 @@ function Console() {
             <section style={{ ...panel, overflowX: "auto" }}>
               <h2 style={{ marginTop: 0 }}>Sensor history for first device channel</h2>
               {history.length ? (
-                <table style={table}>
-                  <thead><tr><th style={th}>Time</th><th style={th}>Value</th><th style={th}>Unit</th></tr></thead>
-                  <tbody>{history.map((item) => <tr key={getId(item) || item.createdAt}><td style={td}>{new Date(item.createdAt).toLocaleString()}</td><td style={td}>{item.value}</td><td style={td}>{item.unit}</td></tr>)}</tbody>
-                </table>
+                <>
+                  <div style={{ height: 280, minWidth: 520, marginBottom: 18 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={historyChartData} margin={{ top: 12, right: 20, left: 0, bottom: 8 }}>
+                        <CartesianGrid stroke="#e2e8f0" strokeDasharray="4 4" />
+                        <XAxis dataKey="time" stroke="#64748b" />
+                        <YAxis stroke="#64748b" />
+                        <Tooltip formatter={(value, _name, item) => [`${value} ${item.payload.unit || ""}`, "Value"]} />
+                        <Line type="monotone" dataKey="value" stroke="#145ea8" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 6 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <table style={table}>
+                    <thead><tr><th style={th}>Time</th><th style={th}>Value</th><th style={th}>Unit</th></tr></thead>
+                    <tbody>{history.map((item) => <tr key={getId(item) || item.createdAt}><td style={td}>{new Date(item.createdAt).toLocaleString()}</td><td style={td}>{item.value}</td><td style={td}>{item.unit}</td></tr>)}</tbody>
+                  </table>
+                </>
               ) : <Empty text={selectedSensorId ? "No readings for this sensor channel yet." : "No sensor channel found for this device."} />}
             </section>
           </div>
@@ -706,11 +781,49 @@ function Console() {
                   <button style={button} onClick={() => run(async () => { await adminApi.assignDevice(forms.assignDeviceId, { homeId: forms.assignHomeId }); await loadAdmin(); await refreshAll(); }, "Device assigned")} disabled={!forms.assignDeviceId || !forms.assignHomeId}>Assign</button>
                 </div>
               </div>
+              <div style={panel}>
+                <h2 style={{ marginTop: 0 }}>Add user to home</h2>
+                <div style={{ display: "grid", gap: 10 }}>
+                  <Field label="Home">
+                    <select style={input} value={forms.adminMemberHomeId} onChange={(e) => updateForm("adminMemberHomeId", e.target.value)}>
+                      <option value="">Choose home</option>
+                      {adminData.homes.map((item) => <option key={getId(item)} value={getId(item)}>{item.name}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="User">
+                    <select style={input} value={forms.adminMemberUserId} onChange={(e) => updateForm("adminMemberUserId", e.target.value)}>
+                      <option value="">Choose user</option>
+                      {adminData.users.map((item) => <option key={getId(item)} value={getId(item)}>{item.name || item.email}</option>)}
+                    </select>
+                  </Field>
+                  <label style={{ display: "flex", gap: 10, alignItems: "center", color: "#334155", fontWeight: 600 }}>
+                    <input
+                      type="checkbox"
+                      checked={forms.adminMemberAsOwner}
+                      onChange={(e) => updateForm("adminMemberAsOwner", e.target.checked)}
+                    />
+                    Add as owner
+                  </label>
+                  <button style={button} onClick={addUserToHome} disabled={!forms.adminMemberHomeId || !forms.adminMemberUserId}>Add user</button>
+                </div>
+              </div>
             </section>
             <section style={{ ...panel, overflowX: "auto" }}>
               <h2 style={{ marginTop: 0 }}>Users</h2>
               <table style={table}><thead><tr><th style={th}>Name</th><th style={th}>Email</th><th style={th}>Role</th><th style={th}>Action</th></tr></thead><tbody>
                 {adminData.users.map((item) => <tr key={getId(item)}><td style={td}>{item.name}</td><td style={td}>{item.email}</td><td style={td}>{item.role}</td><td style={td}><button style={subtleButton} onClick={() => run(async () => { await adminApi.changeRole(getId(item), item.role === "admin" ? "user" : "admin"); await loadAdmin(); }, "Role updated")}>Make {item.role === "admin" ? "user" : "admin"}</button></td></tr>)}
+              </tbody></table>
+            </section>
+            <section style={{ ...panel, overflowX: "auto" }}>
+              <h2 style={{ marginTop: 0 }}>All homes</h2>
+              <table style={table}><thead><tr><th style={th}>Home</th><th style={th}>Owners</th><th style={th}>Members</th></tr></thead><tbody>
+                {adminData.homes.map((item) => (
+                  <tr key={getId(item)}>
+                    <td style={td}>{item.name}</td>
+                    <td style={td}>{asList(item.ownerIds).map((owner) => owner.name || owner.email || getId(owner)).join(", ") || "-"}</td>
+                    <td style={td}>{asList(item.memberIds).map((member) => member.name || member.email || getId(member)).join(", ") || "-"}</td>
+                  </tr>
+                ))}
               </tbody></table>
             </section>
             <section style={{ ...panel, overflowX: "auto" }}>
