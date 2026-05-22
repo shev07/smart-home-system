@@ -4,8 +4,24 @@ const getDefaultApiBaseUrl = () => {
   return `${backendProtocol}//${hostname}:5000/api`;
 };
 
+const normalizeConfiguredApiBaseUrl = (value) => {
+  if (!value) return "";
+
+  const trimmed = value.replace(/\/+$/, "");
+  const pageHostname = window.location.hostname;
+  const isLanPage = pageHostname !== "localhost" && pageHostname !== "127.0.0.1";
+
+  if (isLanPage) {
+    return trimmed
+      .replace("://localhost:", `://${pageHostname}:`)
+      .replace("://127.0.0.1:", `://${pageHostname}:`);
+  }
+
+  return trimmed;
+};
+
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "") ||
+  normalizeConfiguredApiBaseUrl(import.meta.env.VITE_API_BASE_URL) ||
   getDefaultApiBaseUrl();
 
 const buildHeaders = (hasBody) => {

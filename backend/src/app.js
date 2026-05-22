@@ -43,17 +43,52 @@ const alertRoutes     = require('./routes/alert.routes');
 const app    = express();
 const server = http.createServer(app);
 
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (!process.env.CLIENT_URL || process.env.CLIENT_URL === '*') return true;
+
+  const allowedOrigins = new Set([
+    process.env.CLIENT_URL,
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+  ]);
+
+  if (allowedOrigins.has(origin)) return true;
+
+  try {
+    const url = new URL(origin);
+    const isDevPort = url.port === '5173';
+    const isLanHost =
+      url.hostname.startsWith('192.168.') ||
+      url.hostname.startsWith('10.') ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(url.hostname);
+
+    return isDevPort && isLanHost;
+  } catch {
+    return false;
+  }
+};
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (isAllowedOrigin(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error(`CORS blocked origin: ${origin}`));
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+};
+
 // ── Socket.io setup ─────────────────────────────────────────────
 const io = new Server(server, {
-  cors: {
-    origin: process.env.CLIENT_URL || '*',
-    methods: ['GET', 'POST'],
-  },
+  cors: corsOptions,
 });
 socketService.init(io);
 
 // ── Middleware ──────────────────────────────────────────────────
-app.use(cors({ origin: process.env.CLIENT_URL || '*' }));
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // ── Swagger UI ──────────────────────────────────────────────────
