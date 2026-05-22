@@ -1,7 +1,12 @@
 const router = require('express').Router();
 const { authenticate }  = require('../middleware/auth.middleware');
 const { validateBody }  = require('../middleware/validate.middleware');
-const { registerSchema, loginSchema } = require('../validators/auth.validator');
+const {
+  registerSchema,
+  loginSchema,
+  recoveryVerifySchema,
+  resetPasswordSchema,
+} = require('../validators/auth.validator');
 const authController    = require('../controllers/auth.controller');
 
 /**
@@ -72,6 +77,9 @@ router.post('/register', validateBody(registerSchema), authController.register);
  *         description: Sai email hoặc mật khẩu
  */
 router.post('/login', validateBody(loginSchema), authController.login);
+
+router.post('/forgot-password/verify', validateBody(recoveryVerifySchema), authController.verifyRecoveryIdentity);
+router.post('/reset-password', validateBody(resetPasswordSchema), authController.resetPassword);
 
 /**
  * @swagger

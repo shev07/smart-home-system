@@ -10,6 +10,31 @@ const { JWT_EXPIRY } = require('../config/constants');
 const _generateToken = (userId) =>
   jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: JWT_EXPIRY });
 
+const _normalizePhone = (value = '') => value.replace(/[\s-]/g, '').trim();
+
+const _findUserForRecovery = async ({ username, phone }) => {
+  const identifier = username?.trim();
+  const normalizedPhone = _normalizePhone(phone);
+
+  if (!identifier || !normalizedPhone) {
+    throw new AppError('Username and phone number are required', 400, 'RECOVERY_FIELDS_REQUIRED');
+  }
+
+  const candidates = await User.find({
+    $or: [
+      { email: identifier.toLowerCase() },
+      { name: new RegExp(`^${identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+    ],
+  });
+
+  const user = candidates.find((item) => _normalizePhone(item.phoneNumber || '') === normalizedPhone);
+  if (!user) {
+    throw new AppError('Username and phone number do not match any account', 404, 'RECOVERY_ACCOUNT_NOT_FOUND');
+  }
+
+  return user;
+};
+
 /**
  * Đăng ký người dùng mới
  * @param {{ name, email, passwordHash, phoneNumber }} payload
@@ -61,4 +86,22 @@ const getMe = async (userId) => {
   return user;
 };
 
-module.exports = { register, login, getMe };
+const verifyRecoveryIdentity = async ({ username, phone }) => {
+  const user = await _findUserForRecovery({ username, phone });
+
+  return {
+    recoveryId: user._id,
+    username: user.email,
+    message: 'Identity verified. You can set a new password now.',
+  };
+};
+
+const resetPassword = async ({ username, phone, newPassword }) => {
+  const user = await _findUserForRecovery({ username, phone });
+  user.passwordHash = newPassword;
+  await user.save();
+
+  return { message: 'Password updated successfully. You can login with the new password now.' };
+};
+
+module.exports = { register, login, getMe, verifyRecoveryIdentity, resetPassword };

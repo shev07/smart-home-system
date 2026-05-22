@@ -26,4 +26,14 @@ const getMe = asyncHandler(async (req, res) => {
   successResponse(res, user, 'User profile retrieved');
 });
 
-module.exports = { register, login, getMe };
+const verifyRecoveryIdentity = asyncHandler(async (req, res) => {
+  const result = await authService.verifyRecoveryIdentity(req.body);
+  successResponse(res, result, 'Recovery identity verified');
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+  const result = await authService.resetPassword(req.body);
+  successResponse(res, result, 'Password reset successful');
+});
+
+module.exports = { register, login, getMe, verifyRecoveryIdentity, resetPassword };
