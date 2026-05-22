@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 const SETTINGS_KEY = "smart-home-ui-settings";
@@ -9,18 +9,19 @@ const defaults = {
   refreshInterval: 5,
   chartPoints: 60,
   alertNotifications: true,
-  compactMode: false,
-  accentColor: "#145ea8",
-  defaultTab: "overview"
+  themeMode: "light"
 };
 
-const pageStyle = {
+const getPageStyle = (themeMode) => ({
   minHeight: "100vh",
   padding: "32px 20px 48px",
   background:
-    "radial-gradient(circle at top, rgba(56,189,248,0.18), transparent 30%), linear-gradient(180deg, #e9f6ff 0%, #f8fafc 42%, #eef2ff 100%)",
+    themeMode === "dark"
+      ? "linear-gradient(180deg, #020617 0%, #0f172a 50%, #111827 100%)"
+      : "radial-gradient(circle at top, rgba(56,189,248,0.18), transparent 30%), linear-gradient(180deg, #e9f6ff 0%, #f8fafc 42%, #eef2ff 100%)",
+  color: themeMode === "dark" ? "#e2e8f0" : "#0f172a",
   fontFamily: '"Segoe UI", sans-serif'
-};
+});
 const shellStyle = { maxWidth: "1120px", margin: "0 auto" };
 const heroStyle = {
   background: "linear-gradient(135deg, #0f172a, #145ea8)",
@@ -29,22 +30,23 @@ const heroStyle = {
   padding: "28px",
   boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)"
 };
-const cardStyle = {
-  background: "rgba(255,255,255,0.94)",
-  border: "1px solid #dbe6f3",
+const getCardStyle = (themeMode) => ({
+  background: themeMode === "dark" ? "rgba(15,23,42,0.94)" : "rgba(255,255,255,0.94)",
+  border: themeMode === "dark" ? "1px solid #334155" : "1px solid #dbe6f3",
   borderRadius: "12px",
   padding: "20px",
   boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
   marginTop: "18px"
-};
-const inputStyle = {
+});
+const getInputStyle = (themeMode) => ({
   width: "100%",
   boxSizing: "border-box",
-  border: "1px solid #c7d2e4",
+  border: themeMode === "dark" ? "1px solid #475569" : "1px solid #c7d2e4",
   borderRadius: 8,
   padding: "10px 12px",
-  background: "#fff"
-};
+  background: themeMode === "dark" ? "#020617" : "#fff",
+  color: themeMode === "dark" ? "#e2e8f0" : "#0f172a"
+});
 const buttonStyle = {
   border: 0,
   borderRadius: 8,
@@ -74,6 +76,15 @@ const loadSettings = () => {
 
 function Settings() {
   const [settings, setSettings] = useState(loadSettings);
+  const pageStyle = getPageStyle(settings.themeMode);
+  const cardStyle = getCardStyle(settings.themeMode);
+  const inputStyle = getInputStyle(settings.themeMode);
+  const mutedColor = settings.themeMode === "dark" ? "#94a3b8" : "#475569";
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = settings.themeMode;
+    document.body.style.background = settings.themeMode === "dark" ? "#020617" : "#f8fafc";
+  }, [settings.themeMode]);
 
   const saveSetting = (key, value) => {
     const next = { ...settings, [key]: value };
@@ -106,7 +117,7 @@ function Settings() {
               <div style={{ color: "#7dd3fc", fontWeight: 800, letterSpacing: "0.08em" }}>SETTINGS</div>
               <h1 style={{ fontSize: "2.1rem", margin: "10px 0 12px" }}>Personalize dashboard behavior</h1>
               <p style={{ maxWidth: 720, margin: 0, color: "#dbeafe", lineHeight: 1.6 }}>
-                These preferences are stored locally in the browser and affect dashboard defaults, charts, and visual density.
+                These preferences are stored locally in the browser and keep the dashboard simple to tune.
               </p>
             </div>
             <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
@@ -130,7 +141,7 @@ function Settings() {
                 style={inputStyle}
               />
             </label>
-            <div style={{ marginTop: 14, color: "#475569" }}>Behavior: <strong>{behaviorLabel}</strong></div>
+            <div style={{ marginTop: 14, color: mutedColor }}>Behavior: <strong>{behaviorLabel}</strong></div>
           </section>
 
           <section style={cardStyle}>
@@ -160,34 +171,25 @@ function Settings() {
           </section>
 
           <section style={cardStyle}>
-            <h2 style={{ marginTop: 0 }}>Display</h2>
+            <h2 style={{ marginTop: 0 }}>Theme</h2>
             <label>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>Accent color</div>
-              <input
-                type="color"
-                value={settings.accentColor}
-                onChange={(event) => saveSetting("accentColor", event.target.value)}
-                style={{ ...inputStyle, height: 44, padding: 6 }}
-              />
-            </label>
-            <label style={{ display: "block", marginTop: 14 }}>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>Default dashboard tab</div>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>Light or dark mode</div>
               <select
-                value={settings.defaultTab}
-                onChange={(event) => saveSetting("defaultTab", event.target.value)}
+                value={settings.themeMode}
+                onChange={(event) => saveSetting("themeMode", event.target.value)}
                 style={inputStyle}
               >
-                <option value="overview">Overview</option>
-                <option value="homes">Homes</option>
-                <option value="devices">Devices</option>
-                <option value="automation">Automation</option>
-                <option value="alerts">Alerts</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
               </select>
             </label>
+            <div style={{ marginTop: 14, color: mutedColor }}>
+              Theme applies immediately on this page and is saved for future UI integration.
+            </div>
           </section>
 
           <section style={cardStyle}>
-            <h2 style={{ marginTop: 0 }}>Toggles</h2>
+            <h2 style={{ marginTop: 0 }}>Alerts</h2>
             <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
               <input
                 type="checkbox"
@@ -196,22 +198,12 @@ function Settings() {
               />
               Show alert notification cues
             </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <input
-                type="checkbox"
-                checked={settings.compactMode}
-                onChange={(event) => saveSetting("compactMode", event.target.checked)}
-              />
-              Compact dashboard layout
-            </label>
           </section>
         </div>
 
         <section style={cardStyle}>
-          <h2 style={{ marginTop: 0 }}>Current preference payload</h2>
-          <pre style={{ margin: 0, overflowX: "auto", background: "#0f172a", color: "#e2e8f0", padding: 16, borderRadius: 10 }}>
-            {JSON.stringify(settings, null, 2)}
-          </pre>
+          <h2 style={{ marginTop: 0 }}>Reset</h2>
+          <div style={{ color: mutedColor }}>Restore the default threshold, refresh settings, alerts, and theme.</div>
           <button style={{ ...buttonStyle, marginTop: 16 }} onClick={resetSettings}>Reset defaults</button>
         </section>
       </div>

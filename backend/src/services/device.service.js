@@ -96,7 +96,15 @@ const controlDevice = async (deviceId, userId, action) => {
     expiresAt,
   });
 
-  return { commandId: command._id, message: 'Command queued — awaiting ESP32 execution' };
+  device.status = action;
+  await device.save();
+
+  return {
+    commandId: command._id,
+    deviceId: device._id,
+    status: device.status,
+    message: 'Command queued and device state updated',
+  };
 };
 
 /**
