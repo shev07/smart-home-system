@@ -89,7 +89,7 @@ Mở terminal thứ hai:
 npm install
 copy .env.example .env
 notepad .env
-npm run dev -- --host 127.0.0.1 --port 5173
+npm run dev -- --host
 ```
 
 Ví dụ `.env` frontend:
