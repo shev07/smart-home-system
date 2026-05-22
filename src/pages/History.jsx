@@ -54,6 +54,19 @@ const asList = (value, key) => {
   return [];
 };
 
+const demoHistory = Array.from({ length: 36 }, (_, index) => {
+  const createdAt = new Date(Date.now() - (35 - index) * 5 * 60 * 1000).toISOString();
+  const wave = Math.sin(index / 4) * 2.8;
+  const drift = index > 18 ? (index - 18) * 0.08 : 0;
+  return {
+    _id: `demo-${index}`,
+    createdAt,
+    value: Number((29.5 + wave + drift).toFixed(1)),
+    unit: "°C",
+    isDemo: true
+  };
+});
+
 function History() {
   const [homes, setHomes] = useState([]);
   const [homeId, setHomeId] = useState("");
@@ -141,21 +154,23 @@ function History() {
   }, [sensorDeviceId]);
 
   const selectedSensor = sensorDevices.find((item) => getId(item) === sensorDeviceId);
-  const chartData = history
+  const visibleHistory = history.length ? history : demoHistory;
+  const isDemoHistory = !history.length;
+  const chartData = visibleHistory
     .slice()
     .reverse()
     .map((item) => ({
       time: new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       value: Number(item.value),
-      unit: item.unit || selectedSensor?.unit || ""
+      unit: item.unit || selectedSensor?.unit || "°C"
     }));
-  const latestRecord = history[0];
+  const latestRecord = visibleHistory[0];
   const averageValue = useMemo(
-    () => history.length ? history.reduce((sum, item) => sum + Number(item.value || 0), 0) / history.length : 0,
-    [history]
+    () => visibleHistory.length ? visibleHistory.reduce((sum, item) => sum + Number(item.value || 0), 0) / visibleHistory.length : 0,
+    [visibleHistory]
   );
-  const minValue = history.length ? Math.min(...history.map((item) => Number(item.value))) : null;
-  const maxValue = history.length ? Math.max(...history.map((item) => Number(item.value))) : null;
+  const minValue = visibleHistory.length ? Math.min(...visibleHistory.map((item) => Number(item.value))) : null;
+  const maxValue = visibleHistory.length ? Math.max(...visibleHistory.map((item) => Number(item.value))) : null;
 
   return (
     <div style={pageStyle}>
@@ -206,11 +221,16 @@ function History() {
 
         <section style={cardStyle}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14 }}>
-            <div><div style={{ color: "#64748b" }}>Records</div><strong style={{ fontSize: "2rem" }}>{history.length}</strong></div>
+            <div><div style={{ color: "#64748b" }}>Records</div><strong style={{ fontSize: "2rem" }}>{visibleHistory.length}</strong></div>
             <div><div style={{ color: "#64748b" }}>Latest</div><strong>{latestRecord ? `${latestRecord.value} ${latestRecord.unit}` : "--"}</strong></div>
-            <div><div style={{ color: "#64748b" }}>Average</div><strong>{history.length ? averageValue.toFixed(2) : "--"}</strong></div>
-            <div><div style={{ color: "#64748b" }}>Min / Max</div><strong>{history.length ? `${minValue} / ${maxValue}` : "--"}</strong></div>
+            <div><div style={{ color: "#64748b" }}>Average</div><strong>{visibleHistory.length ? averageValue.toFixed(2) : "--"}</strong></div>
+            <div><div style={{ color: "#64748b" }}>Min / Max</div><strong>{visibleHistory.length ? `${minValue} / ${maxValue}` : "--"}</strong></div>
           </div>
+          {isDemoHistory && (
+            <div style={{ marginTop: 14, borderRadius: 10, background: "#fff7ed", color: "#9a3412", padding: "12px 14px" }}>
+              No real sensor rows are available for the selected channel yet. The chart below is demo data for layout and presentation only.
+            </div>
+          )}
         </section>
 
         <section style={{ ...cardStyle, overflowX: "auto" }}>
@@ -234,15 +254,16 @@ function History() {
 
         <section style={{ ...cardStyle, overflowX: "auto" }}>
           <h2 style={{ marginTop: 0 }}>Sensor log</h2>
-          {history.length ? (
+          {visibleHistory.length ? (
             <table style={tableStyle}>
-              <thead><tr><th style={thStyle}>Time</th><th style={thStyle}>Value</th><th style={thStyle}>Unit</th></tr></thead>
+              <thead><tr><th style={thStyle}>Time</th><th style={thStyle}>Value</th><th style={thStyle}>Unit</th><th style={thStyle}>Source</th></tr></thead>
               <tbody>
-                {history.map((item) => (
+                {visibleHistory.map((item) => (
                   <tr key={getId(item) || item.createdAt}>
                     <td style={tdStyle}>{new Date(item.createdAt).toLocaleString()}</td>
                     <td style={tdStyle}>{item.value}</td>
                     <td style={tdStyle}>{item.unit}</td>
+                    <td style={tdStyle}>{item.isDemo ? "Demo" : "Backend"}</td>
                   </tr>
                 ))}
               </tbody>
