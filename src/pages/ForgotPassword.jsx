@@ -230,7 +230,11 @@ function ForgotPassword() {
                   padding: "12px 14px"
                 }}
               >
-                Identity verified. Set a new password below.
+                <div style={{ fontWeight: 700 }}>Identity verified.</div>
+                <div style={{ marginTop: "6px" }}>
+                  Registered email: <strong>{result?.email || result?.username || "Not available"}</strong>
+                </div>
+                <div style={{ marginTop: "6px" }}>Set a new password below.</div>
               </div>
 
               <label>

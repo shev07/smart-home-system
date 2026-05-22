@@ -113,6 +113,7 @@ export const verifyRecoveryIdentity = async ({ username, phone }) => {
       data: {
         recoveryId: `demo-recovery-${user.username}`,
         username: user.username,
+        email: user.email || `${user.username}@demo.local`,
         message: "Identity verified. You can set a new password now."
       },
       fallback: true,

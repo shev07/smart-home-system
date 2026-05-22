@@ -92,6 +92,7 @@ const verifyRecoveryIdentity = async ({ username, phone }) => {
   return {
     recoveryId: user._id,
     username: user.email,
+    email: user.email,
     message: 'Identity verified. You can set a new password now.',
   };
 };
