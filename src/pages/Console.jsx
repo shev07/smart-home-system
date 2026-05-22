@@ -93,6 +93,7 @@ const asList = (value, key) => {
   if (Array.isArray(value?.data)) return value.data;
   return [];
 };
+const personLabel = (person) => person?.name || person?.email || getId(person) || "Unknown";
 const today = new Date().toISOString().slice(0, 10);
 
 function Field({ label, children }) {
@@ -144,7 +145,13 @@ function StepBadge({ number, title, active }) {
 function Console() {
   const navigate = useNavigate();
   const [user, setUser] = useState(() => getStoredUser());
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("smart-home-ui-settings") || "{}").defaultTab || "overview";
+    } catch {
+      return "overview";
+    }
+  });
   const [homes, setHomes] = useState([]);
   const [homeId, setHomeId] = useState("");
   const [areas, setAreas] = useState([]);
@@ -324,6 +331,20 @@ function Console() {
     }),
     [alerts, rules, schedules, sensorDevices]
   );
+  const homeSummaries = homes.map((home) => {
+    const id = getId(home);
+    const isCurrent = id === homeId;
+    const homeDevices = isCurrent ? devices : [];
+    const homeAreas = isCurrent ? areas : [];
+    return {
+      id,
+      name: home.name,
+      owners: asList(home.ownerIds).map(personLabel),
+      members: asList(home.memberIds).map(personLabel),
+      areaCount: isCurrent ? homeAreas.length : "Select to load",
+      deviceCount: isCurrent ? homeDevices.length : "Select to load",
+    };
+  });
 
   const createHome = () =>
     run(async () => {
@@ -480,6 +501,47 @@ function Console() {
                 </section>
               ))}
             </div>
+            <section style={{ ...panel, overflowX: "auto" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
+                <div>
+                  <div style={sectionEyebrow}>Home ownership overview</div>
+                  <h2 style={{ margin: "6px 0 0" }}>Homes, owners, members, and loaded assets</h2>
+                </div>
+                <button style={subtleButton} onClick={() => setActiveTab("homes")}>Manage homes</button>
+              </div>
+              {homeSummaries.length ? (
+                <table style={{ ...table, marginTop: 14 }}>
+                  <thead>
+                    <tr>
+                      <th style={th}>Home</th>
+                      <th style={th}>Owners</th>
+                      <th style={th}>Members</th>
+                      <th style={th}>Areas</th>
+                      <th style={th}>Devices</th>
+                      <th style={th}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {homeSummaries.map((home) => (
+                      <tr key={home.id}>
+                        <td style={td}><strong>{home.name}</strong></td>
+                        <td style={td}>{home.owners.join(", ") || "-"}</td>
+                        <td style={td}>{home.members.join(", ") || "-"}</td>
+                        <td style={td}>{home.areaCount}</td>
+                        <td style={td}>{home.deviceCount}</td>
+                        <td style={td}>
+                          <button style={subtleButton} onClick={() => { setHomeId(home.id); setActiveTab("homes"); }}>
+                            Open
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <Empty text="No homes assigned to this account yet." />
+              )}
+            </section>
             <section style={panel}>
               <h2 style={{ marginTop: 0 }}>Latest sensor values</h2>
               {latestSensors.length ? (
@@ -592,9 +654,13 @@ function Console() {
 
         {activeTab === "devices" && (
           <div style={{ display: "grid", gap: 16 }}>
-            {isAdmin ? (
             <section style={panel}>
               <h2 style={{ marginTop: 0 }}>Add device</h2>
+              {!isAdmin && (
+                <p style={{ margin: "0 0 14px", color: "#64748b" }}>
+                  You can add devices to homes assigned to your account. Admin still handles discovered ESP32 assignment.
+                </p>
+              )}
               <div style={grid}>
                 <Field label="Name"><input style={input} value={forms.deviceName} onChange={(e) => updateForm("deviceName", e.target.value)} /></Field>
                 <Field label="Type">
@@ -612,15 +678,6 @@ function Console() {
               </div>
               <button style={{ ...button, marginTop: 12 }} onClick={createDevice} disabled={!homeId || !forms.deviceName || busy}>Add device</button>
             </section>
-            ) : (
-            <section style={panel}>
-              <div style={sectionEyebrow}>User permission</div>
-              <h2 style={{ margin: "6px 0 8px" }}>Device list only</h2>
-              <p style={{ margin: 0, color: "#64748b" }}>
-                User accounts can create areas in assigned homes. Device assignment is handled by admin.
-              </p>
-            </section>
-            )}
 
             <section style={{ ...panel, overflowX: "auto" }}>
               <h2 style={{ marginTop: 0 }}>Devices</h2>

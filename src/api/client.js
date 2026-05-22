@@ -36,6 +36,13 @@ export async function apiRequest(path, options = {}) {
     : await response.text();
 
   if (!response.ok) {
+    const code = typeof payload === "string" ? "" : payload?.code;
+    const messageFromPayload = typeof payload === "string" ? payload : payload?.message;
+    if (response.status === 401 && /token/i.test(messageFromPayload || code || "")) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("auth_user");
+    }
+
     const message =
       typeof payload === "string"
         ? payload

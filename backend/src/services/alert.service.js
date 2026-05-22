@@ -10,7 +10,10 @@ const { DEFAULT_ALERT_LIMIT } = require('../config/constants');
  */
 const getAlerts = async (userId, { homeId, isRead, limit, page } = {}) => {
   // Verify home ownership
-  const home = await Home.findOne({ _id: homeId, ownerIds: userId });
+  const home = await Home.findOne({
+    _id: homeId,
+    $or: [{ ownerIds: userId }, { memberIds: userId }],
+  });
   if (!home) throw new AppError('Home not found or access denied', 404);
 
   // Lấy tất cả deviceIds thuộc home này
@@ -45,7 +48,10 @@ const markAsRead = async (alertId) => {
 };
 
 const markAllAsRead = async (userId, homeId) => {
-  const home = await Home.findOne({ _id: homeId, ownerIds: userId });
+  const home = await Home.findOne({
+    _id: homeId,
+    $or: [{ ownerIds: userId }, { memberIds: userId }],
+  });
   if (!home) throw new AppError('Access denied', 403);
 
   const devices = await Device.find({ homeId }).select('_id').lean();

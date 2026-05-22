@@ -17,7 +17,10 @@ const createHome = async (userId, { name }) => {
 const getUserHomes = async (userId) => {
   return Home.find({
     $or: [{ ownerIds: userId }, { memberIds: userId }],
-  }).sort({ createdAt: -1 });
+  })
+    .populate('ownerIds', 'name email role')
+    .populate('memberIds', 'name email role')
+    .sort({ createdAt: -1 });
 };
 
 /**
@@ -27,7 +30,9 @@ const getHomeById = async (homeId, userId) => {
   const home = await Home.findOne({
     _id: homeId,
     $or: [{ ownerIds: userId }, { memberIds: userId }],
-  });
+  })
+    .populate('ownerIds', 'name email role')
+    .populate('memberIds', 'name email role');
   if (!home) throw new AppError('Home not found', 404);
   return home;
 };

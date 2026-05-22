@@ -29,7 +29,7 @@ const register = async ({ name, email, passwordHash, phoneNumber }) => {
   const token = _generateToken(user._id);
   return {
     token,
-    user: { id: user._id, name: user.name, email: user.email },
+    user: { id: user._id, name: user.name, email: user.email, role: user.role },
   };
 };
 
@@ -47,7 +47,7 @@ const login = async ({ email, password }) => {
   const token = _generateToken(user._id);
   return {
     token,
-    user: { id: user._id, name: user.name, email: user.email },
+    user: { id: user._id, name: user.name, email: user.email, role: user.role },
   };
 };
 

@@ -5,6 +5,12 @@ const AppError     = require('../utils/AppError');
 const socketService = require('./socket.service');
 const { WS_EVENTS, COMMAND_TTL_SECONDS, COMMAND_STATUS, COMMAND_SOURCE } = require('../config/constants');
 
+const _findAccessibleHome = (homeId, userId) =>
+  Home.findOne({
+    _id: homeId,
+    $or: [{ ownerIds: userId }, { memberIds: userId }],
+  });
+
 /**
  * Verify device thuộc home của user (authorization check)
  */
@@ -12,7 +18,7 @@ const _verifyOwnership = async (deviceId, userId) => {
   const device = await Device.findById(deviceId);
   if (!device) throw new AppError('Device not found', 404);
 
-  const home = await Home.findOne({ _id: device.homeId, ownerIds: userId });
+  const home = await _findAccessibleHome(device.homeId, userId);
   if (!home) throw new AppError('Access denied', 403);
 
   return { device, home };
@@ -23,7 +29,7 @@ const _verifyOwnership = async (deviceId, userId) => {
  * Hỗ trợ filter: ?unassigned=true (chỉ lấy device chưa thuộc area nào)
  */
 const getDevicesByHome = async (homeId, userId, { unassigned } = {}) => {
-  const home = await Home.findOne({ _id: homeId, ownerIds: userId });
+  const home = await _findAccessibleHome(homeId, userId);
   if (!home) throw new AppError('Home not found', 404);
 
   const filter = { homeId };
@@ -36,7 +42,7 @@ const getDevicesByHome = async (homeId, userId, { unassigned } = {}) => {
  * Thêm device mới vào home
  */
 const addDevice = async (homeId, userId, { name, type, areaId }) => {
-  const home = await Home.findOne({ _id: homeId, ownerIds: userId });
+  const home = await _findAccessibleHome(homeId, userId);
   if (!home) throw new AppError('Home not found', 404);
 
   const device = await Device.create({ homeId, name, type, areaId: areaId || null });

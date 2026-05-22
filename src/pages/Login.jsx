@@ -184,30 +184,32 @@ function Login() {
             Use a demo account or your backend account if the auth API is available.
           </p>
 
-          <div
-            style={{
-              marginTop: "18px",
-              borderRadius: "16px",
-              background: "#eff6ff",
-              color: "#1d4ed8",
-              padding: "14px 16px"
-            }}
-          >
-            <div style={{ fontWeight: 700 }}>Demo accounts</div>
-            <div style={{ marginTop: "6px" }}>`admin / admin123`</div>
-            <div>`khanh / khanh123`</div>
-          </div>
+          {import.meta.env.VITE_ENABLE_DEMO_FALLBACK === "true" && (
+            <div
+              style={{
+                marginTop: "18px",
+                borderRadius: "16px",
+                background: "#eff6ff",
+                color: "#1d4ed8",
+                padding: "14px 16px"
+              }}
+            >
+              <div style={{ fontWeight: 700 }}>Demo accounts</div>
+              <div style={{ marginTop: "6px" }}>`admin / admin123`</div>
+              <div>`khanh / khanh123`</div>
+            </div>
+          )}
 
           {mode === "login" ? (
           <form onSubmit={handleSubmit} style={{ marginTop: "20px", display: "grid", gap: "16px" }}>
             <label>
-              <div style={{ color: "#334155", fontWeight: 600 }}>Email or demo username</div>
+              <div style={{ color: "#334155", fontWeight: 600 }}>Email</div>
               <input
                 name="username"
                 value={form.username}
                 onChange={handleChange}
                 style={inputStyle}
-                placeholder="user@example.com or admin"
+                placeholder="user@example.com"
               />
             </label>
 

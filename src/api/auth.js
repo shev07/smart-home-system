@@ -3,6 +3,7 @@ import { demoUsers, updateDemoUserPassword } from "../mock/auth";
 
 const TOKEN_KEY = "token";
 const USER_KEY = "auth_user";
+const DEMO_FALLBACK_ENABLED = import.meta.env.VITE_ENABLE_DEMO_FALLBACK === "true";
 
 const saveSession = (token, user) => {
   localStorage.setItem(TOKEN_KEY, token);
@@ -24,9 +25,14 @@ const findDemoUser = ({ username, phone }) =>
   });
 
 export const loginUser = async ({ username, password }) => {
-  const email = username?.includes("@") ? username.trim() : `${username?.trim() || ""}@demo.local`;
+  clearSession();
+  const email = username?.trim();
 
   try {
+    if (!email?.includes("@")) {
+      throw new Error("Please login with your account email.");
+    }
+
     const payload = await apiRequest("/auth/login", {
       method: "POST",
       body: { email, password }
@@ -39,6 +45,10 @@ export const loginUser = async ({ username, password }) => {
 
     return { data, fallback: false };
   } catch (error) {
+    if (!DEMO_FALLBACK_ENABLED) {
+      throw error;
+    }
+
     const user = findDemoUser({ username });
 
     if (!user || user.password !== password) {

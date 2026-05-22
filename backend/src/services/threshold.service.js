@@ -6,7 +6,10 @@ const AppError      = require('../utils/AppError');
 const _verifyDeviceOwnership = async (deviceId, userId) => {
   const device = await Device.findById(deviceId);
   if (!device) throw new AppError('Device not found', 404);
-  const home = await Home.findOne({ _id: device.homeId, ownerIds: userId });
+  const home = await Home.findOne({
+    _id: device.homeId,
+    $or: [{ ownerIds: userId }, { memberIds: userId }],
+  });
   if (!home) throw new AppError('Access denied', 403);
   return { device, home };
 };

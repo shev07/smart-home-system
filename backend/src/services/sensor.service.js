@@ -122,7 +122,13 @@ const ingestData = async (payload) => {
  * Trả về tất cả SensorDevices của device đó kèm giá trị mới nhất
  */
 const getLatestByDevice = async (deviceId, userId) => {
-  const home = await Home.findOne({ ownerIds: userId });
+  const device = await Device.findById(deviceId).select('homeId').lean();
+  if (!device) throw new AppError('Device not found', 404);
+
+  const home = await Home.findOne({
+    _id: device.homeId,
+    $or: [{ ownerIds: userId }, { memberIds: userId }],
+  });
   if (!home) throw new AppError('Not authorized', 403);
 
   const sensorDevices = await SensorDevice.find({ deviceId }).lean();
