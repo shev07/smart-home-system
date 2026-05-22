@@ -1,16 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-
-const SETTINGS_KEY = "smart-home-ui-settings";
-const TEMP_THRESHOLD_KEY = "smart-home-temp-threshold";
-
-const defaults = {
-  temperatureThreshold: 32,
-  refreshInterval: 5,
-  chartPoints: 60,
-  alertNotifications: true,
-  themeMode: "light"
-};
+import { applyThemeMode, defaultSettings, loadUiSettings, SETTINGS_KEY, TEMP_THRESHOLD_KEY } from "../utils/settings";
 
 const getPageStyle = (themeMode) => ({
   minHeight: "100vh",
@@ -57,33 +47,15 @@ const buttonStyle = {
   cursor: "pointer"
 };
 
-const loadSettings = () => {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-    const legacyThreshold = Number(localStorage.getItem(TEMP_THRESHOLD_KEY));
-    return {
-      ...defaults,
-      ...parsed,
-      temperatureThreshold:
-        Number.isFinite(legacyThreshold) && legacyThreshold > 0
-          ? legacyThreshold
-          : parsed.temperatureThreshold || defaults.temperatureThreshold
-    };
-  } catch {
-    return defaults;
-  }
-};
-
 function Settings() {
-  const [settings, setSettings] = useState(loadSettings);
+  const [settings, setSettings] = useState(loadUiSettings);
   const pageStyle = getPageStyle(settings.themeMode);
   const cardStyle = getCardStyle(settings.themeMode);
   const inputStyle = getInputStyle(settings.themeMode);
   const mutedColor = settings.themeMode === "dark" ? "#94a3b8" : "#475569";
 
   useEffect(() => {
-    document.documentElement.dataset.theme = settings.themeMode;
-    document.body.style.background = settings.themeMode === "dark" ? "#020617" : "#f8fafc";
+    applyThemeMode(settings.themeMode);
   }, [settings.themeMode]);
 
   const saveSetting = (key, value) => {
@@ -93,12 +65,14 @@ function Settings() {
     if (key === "temperatureThreshold") {
       localStorage.setItem(TEMP_THRESHOLD_KEY, value);
     }
+    window.dispatchEvent(new Event("smart-home-settings-change"));
   };
 
   const resetSettings = () => {
-    setSettings(defaults);
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(defaults));
-    localStorage.setItem(TEMP_THRESHOLD_KEY, defaults.temperatureThreshold);
+    setSettings(defaultSettings);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(defaultSettings));
+    localStorage.setItem(TEMP_THRESHOLD_KEY, defaultSettings.temperatureThreshold);
+    window.dispatchEvent(new Event("smart-home-settings-change"));
   };
 
   const behaviorLabel = useMemo(() => {
@@ -184,7 +158,7 @@ function Settings() {
               </select>
             </label>
             <div style={{ marginTop: 14, color: mutedColor }}>
-              Theme applies immediately on this page and is saved for future UI integration.
+              Theme applies immediately across the app.
             </div>
           </section>
 

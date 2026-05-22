@@ -124,13 +124,50 @@ const buildSensorLogRows = (sensorDevices, metricHistory) => {
   return rows.sort((a, b) => new Date(b.createdAt || b.timestamp) - new Date(a.createdAt || a.timestamp));
 };
 
+const timeBucket = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 19);
+};
+
+const buildGroupedSensorLogRows = (rows) => {
+  const grouped = new Map();
+
+  rows.forEach((item) => {
+    const timestamp = item.createdAt || item.timestamp;
+    const key = timeBucket(timestamp);
+    const existing = grouped.get(key) || {
+      key,
+      timestamp,
+      source: item.isDemo ? "Demo" : "Backend",
+      values: {}
+    };
+
+    existing.values[item.sensorType] = {
+      label: item.sensorLabel,
+      value: item.value,
+      unit: item.unit
+    };
+    if (!existing.timestamp || new Date(timestamp) < new Date(existing.timestamp)) {
+      existing.timestamp = timestamp;
+    }
+    if (!item.isDemo) {
+      existing.source = "Backend";
+    }
+
+    grouped.set(key, existing);
+  });
+
+  return Array.from(grouped.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+};
+
 function History() {
   const [homes, setHomes] = useState([]);
   const [homeId, setHomeId] = useState("");
   const [devices, setDevices] = useState([]);
   const [deviceId, setDeviceId] = useState("");
   const [sensorDevices, setSensorDevices] = useState([]);
-  const [sensorDeviceId, setSensorDeviceId] = useState("");
+  const [sensorDeviceId, setSensorDeviceId] = useState("all");
   const [history, setHistory] = useState([]);
   const [metricHistory, setMetricHistory] = useState({ temperature: [], humidity: [] });
   const [error, setError] = useState("");
@@ -182,7 +219,7 @@ function History() {
       try {
         const nextSensors = asList(await sensorsApi.devices(deviceId));
         setSensorDevices(nextSensors);
-        setSensorDeviceId(getId(nextSensors[0]) || "");
+        setSensorDeviceId("all");
       } catch (loadError) {
         setError(loadError.message);
       }
@@ -191,7 +228,7 @@ function History() {
   }, [deviceId]);
 
   useEffect(() => {
-    if (!sensorDeviceId) {
+    if (!sensorDeviceId || sensorDeviceId === "all") {
       const timeout = setTimeout(() => setHistory([]), 0);
       return () => clearTimeout(timeout);
     }
@@ -241,8 +278,15 @@ function History() {
     return () => clearInterval(interval);
   }, [sensorDevices]);
 
-  const visibleHistory = history.length ? history : demoHistory;
-  const isDemoHistory = !history.length;
+  const isAllChannels = sensorDeviceId === "all";
+  const selectedSensor = sensorDevices.find((sensor) => getId(sensor) === sensorDeviceId);
+  const selectedSensorType = selectedSensor ? getSensorType(selectedSensor) : "temperature";
+  const selectedSensorMeta = factorMetaFor(selectedSensorType);
+  const selectedHistory = useMemo(() => {
+    if (isAllChannels) return [];
+    if (history.length) return history;
+    return selectedSensorType === "humidity" ? demoHumidityHistory : demoHistory;
+  }, [history, isAllChannels, selectedSensorType]);
   const temperatureHistory = metricHistory.temperature || [];
   const humidityHistory = metricHistory.humidity || [];
   const visibleTemperatureHistory = temperatureHistory.length ? temperatureHistory : demoHistory;
@@ -268,6 +312,17 @@ function History() {
 
     return Array.from(rowsByTime.values());
   }, [visibleTemperatureHistory, visibleHumidityHistory]);
+  const selectedChartData = useMemo(
+    () =>
+      selectedHistory
+        .slice()
+        .reverse()
+        .map((item) => ({
+          time: new Date(item.createdAt || item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          value: Number(item.value)
+        })),
+    [selectedHistory]
+  );
   const factorSummaries = useMemo(
     () =>
       sensorDevices.map((sensor) => {
@@ -303,17 +358,22 @@ function History() {
       ...demoHumidityHistory.map((item) => ({ ...item, sensorLabel: "Humidity", sensorType: "humidity" }))
     ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }, [sensorDevices, metricHistory]);
-  const latestRecord = visibleHistory[0];
+  const groupedSensorLogRows = useMemo(() => buildGroupedSensorLogRows(sensorLogRows), [sensorLogRows]);
+  const isDemoHistory = isAllChannels
+    ? sensorLogRows.every((item) => item.isDemo)
+    : !history.length;
+  const statsHistory = isAllChannels ? sensorLogRows : selectedHistory;
+  const latestRecord = selectedHistory[0];
   const averageValue = useMemo(
-    () => averageOf(visibleHistory),
-    [visibleHistory]
+    () => averageOf(selectedHistory),
+    [selectedHistory]
   );
   const latestTemperature = visibleTemperatureHistory[0];
   const latestHumidity = visibleHumidityHistory[0];
   const averageTemperature = useMemo(() => averageOf(visibleTemperatureHistory), [visibleTemperatureHistory]);
   const averageHumidity = useMemo(() => averageOf(visibleHumidityHistory), [visibleHumidityHistory]);
-  const minValue = visibleHistory.length ? Math.min(...visibleHistory.map((item) => Number(item.value))) : null;
-  const maxValue = visibleHistory.length ? Math.max(...visibleHistory.map((item) => Number(item.value))) : null;
+  const minValue = selectedHistory.length ? Math.min(...selectedHistory.map((item) => Number(item.value))) : null;
+  const maxValue = selectedHistory.length ? Math.max(...selectedHistory.map((item) => Number(item.value))) : null;
 
   return (
     <div style={pageStyle}>
@@ -355,7 +415,7 @@ function History() {
             <label>
               <div style={{ fontWeight: 700, marginBottom: 8 }}>Sensor channel</div>
               <select style={inputStyle} value={sensorDeviceId} onChange={(event) => setSensorDeviceId(event.target.value)}>
-                <option value="">Choose sensor</option>
+                <option value="all">All channels</option>
                 {sensorDevices.map((sensor) => <option key={getId(sensor)} value={getId(sensor)}>{sensor.name || sensor.sensorType}</option>)}
               </select>
             </label>
@@ -364,10 +424,11 @@ function History() {
 
         <section style={cardStyle}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14 }}>
-            <div><div style={{ color: "#64748b" }}>Records</div><strong style={{ fontSize: "2rem" }}>{visibleHistory.length}</strong></div>
-            <div><div style={{ color: "#64748b" }}>Latest</div><strong>{latestRecord ? `${latestRecord.value} ${latestRecord.unit}` : "--"}</strong></div>
-            <div><div style={{ color: "#64748b" }}>Average</div><strong>{visibleHistory.length ? averageValue.toFixed(2) : "--"}</strong></div>
-            <div><div style={{ color: "#64748b" }}>Min / Max</div><strong>{visibleHistory.length ? `${minValue} / ${maxValue}` : "--"}</strong></div>
+            <div><div style={{ color: "#64748b" }}>View</div><strong style={{ fontSize: "1.4rem" }}>{isAllChannels ? "All channels" : selectedSensor?.name || selectedSensorType}</strong></div>
+            <div><div style={{ color: "#64748b" }}>Records</div><strong style={{ fontSize: "2rem" }}>{statsHistory.length}</strong></div>
+            <div><div style={{ color: "#64748b" }}>Latest</div><strong>{isAllChannels ? `${groupedSensorLogRows[0]?.source || "--"}` : latestRecord ? `${latestRecord.value} ${latestRecord.unit}` : "--"}</strong></div>
+            <div><div style={{ color: "#64748b" }}>Average</div><strong>{isAllChannels ? `${factorSummaries.length} channels` : selectedHistory.length ? averageValue.toFixed(2) : "--"}</strong></div>
+            {!isAllChannels && <div><div style={{ color: "#64748b" }}>Min / Max</div><strong>{selectedHistory.length ? `${minValue} / ${maxValue}` : "--"}</strong></div>}
           </div>
           {isDemoHistory && (
             <div style={{ marginTop: 14, borderRadius: 10, background: "#fff7ed", color: "#9a3412", padding: "12px 14px" }}>
@@ -417,14 +478,26 @@ function History() {
 
           <div style={{ height: 340, minWidth: 680, marginTop: 18 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={combinedChartData} margin={{ top: 14, right: 24, left: 0, bottom: 8 }}>
+              <LineChart data={isAllChannels ? combinedChartData : selectedChartData} margin={{ top: 14, right: 24, left: 0, bottom: 8 }}>
                 <CartesianGrid stroke="#e2e8f0" strokeDasharray="4 4" />
                 <XAxis dataKey="time" stroke="#64748b" />
-                <YAxis yAxisId="temperature" stroke="#dc2626" />
-                <YAxis yAxisId="humidity" orientation="right" stroke="#2563eb" />
+                {isAllChannels ? (
+                  <>
+                    <YAxis yAxisId="temperature" stroke="#dc2626" />
+                    <YAxis yAxisId="humidity" orientation="right" stroke="#2563eb" />
+                  </>
+                ) : (
+                  <YAxis stroke={selectedSensorMeta.color} />
+                )}
                 <Tooltip />
-                <Line yAxisId="temperature" type="monotone" dataKey="temperature" name="Temperature" stroke="#dc2626" strokeWidth={3} dot={false} />
-                <Line yAxisId="humidity" type="monotone" dataKey="humidity" name="Humidity" stroke="#2563eb" strokeWidth={3} dot={false} />
+                {isAllChannels ? (
+                  <>
+                    <Line yAxisId="temperature" type="monotone" dataKey="temperature" name="Temperature" stroke="#dc2626" strokeWidth={3} dot={false} />
+                    <Line yAxisId="humidity" type="monotone" dataKey="humidity" name="Humidity" stroke="#2563eb" strokeWidth={3} dot={false} />
+                  </>
+                ) : (
+                  <Line type="monotone" dataKey="value" name={selectedSensor?.name || selectedSensorMeta.label} stroke={selectedSensorMeta.color} strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 6 }} />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -432,16 +505,52 @@ function History() {
 
         <section style={{ ...cardStyle, overflowX: "auto" }}>
           <h2 style={{ marginTop: 0 }}>Sensor log</h2>
-          {sensorLogRows.length ? (
+          {isAllChannels && groupedSensorLogRows.length ? (
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Time</th>
+                  {factorSummaries.length ? factorSummaries.map((factor) => (
+                    <th key={factor.id} style={thStyle}>{factor.label}</th>
+                  )) : (
+                    <>
+                      <th style={thStyle}>Temperature</th>
+                      <th style={thStyle}>Humidity</th>
+                    </>
+                  )}
+                  <th style={thStyle}>Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groupedSensorLogRows.map((row) => (
+                  <tr key={row.key}>
+                    <td style={tdStyle}>{new Date(row.timestamp).toLocaleString()}</td>
+                    {(factorSummaries.length ? factorSummaries : [
+                      { type: "temperature", label: "Temperature" },
+                      { type: "humidity", label: "Humidity" }
+                    ]).map((factor) => {
+                      const value = row.values[factor.type];
+                      return (
+                        <td key={factor.type} style={tdStyle}>
+                          {value ? `${value.value} ${value.unit || ""}` : "--"}
+                        </td>
+                      );
+                    })}
+                    <td style={tdStyle}>{row.source}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : !isAllChannels && selectedHistory.length ? (
             <table style={tableStyle}>
               <thead><tr><th style={thStyle}>Time</th><th style={thStyle}>Sensor</th><th style={thStyle}>Value</th><th style={thStyle}>Unit</th><th style={thStyle}>Source</th></tr></thead>
               <tbody>
-                {sensorLogRows.map((item) => (
-                  <tr key={`${item.sensorType}-${getId(item) || item.createdAt}`}>
+                {selectedHistory.map((item) => (
+                  <tr key={`${selectedSensorType}-${getId(item) || item.createdAt}`}>
                     <td style={tdStyle}>{new Date(item.createdAt || item.timestamp).toLocaleString()}</td>
-                    <td style={tdStyle}>{item.sensorLabel}</td>
+                    <td style={tdStyle}>{selectedSensor?.name || selectedSensorMeta.label}</td>
                     <td style={tdStyle}>{item.value}</td>
-                    <td style={tdStyle}>{item.unit}</td>
+                    <td style={tdStyle}>{item.unit || selectedSensor?.unit || selectedSensorMeta.unit}</td>
                     <td style={tdStyle}>{item.isDemo ? "Demo" : "Backend"}</td>
                   </tr>
                 ))}
